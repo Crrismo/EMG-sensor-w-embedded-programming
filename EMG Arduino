@@ -1,0 +1,64 @@
+#include <Servo.h>
+
+int servoPin=3;
+Servo servo1;
+
+int barGraph[]={13,12,11,10,9,8,7,6,5,4};
+//double sampleTime=240;
+double sampleTime=100;
+double lastSample=0;
+
+int ledPin=2;
+int zeroValue=0;
+int currentValue=0;
+void setup() {
+  Serial.begin(9600);
+  servo1.attach(servoPin);
+  for(int i=0;i<sizeof(barGraph)/sizeof(int);i++){
+    pinMode(barGraph[i],OUTPUT);
+    Serial.println(i);
+  }
+
+  pinMode(ledPin,OUTPUT);
+  for(int i=0;i<10;i++){
+    zeroValue+=analogRead(A0);
+    delay(5);
+  }
+  zeroValue=zeroValue/10;
+
+}
+
+void loop() {
+  if(millis()-lastSample<sampleTime)
+    return;
+  else
+    lastSample=millis();
+  //Get Reading
+  currentValue+=(analogRead(A0)-zeroValue);
+  currentValue+=(analogRead(A0)-zeroValue);
+  currentValue+=(analogRead(A0)-zeroValue);
+  currentValue=currentValue/4;
+
+  //Set Servo Position
+  servo1.write(map(currentValue,0,1023-zeroValue,0,180));
+
+  //Set LED Bar Graph
+  int ledNumber=map(currentValue,0,1023-zeroValue,0,sizeof(barGraph)/sizeof(int));
+  for(int currentLED=0; currentLED<sizeof(barGraph)/sizeof(int);currentLED++){
+    if(currentLED<=ledNumber){
+      digitalWrite(barGraph[currentLED],HIGH);
+    }else{
+      digitalWrite(barGraph[currentLED],LOW);
+    }
+  }
+
+  //Set Brightness of LED
+  int dimValue=map(currentValue,0,1023-zeroValue,0,100);
+  if(dimValue<0)
+    dimValue=0;
+  analogWrite(ledPin,dimValue);
+
+  //Output Value over serial
+  Serial.println(currentValue);
+
+}
