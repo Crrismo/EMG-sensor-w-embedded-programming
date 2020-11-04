@@ -1,0 +1,83 @@
+#include <ESP8266WiFi.h>
+#include <String.h>
+//192.168.4.1/emg
+const char WiFi_AP_PSK[]="EMG_Display";
+WiFiServer server(80);
+
+String inputString = "";
+float sample[100];
+int numberOfSamples=0;
+
+#define ESP8266_LED 2
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(ESP8266_LED, OUTPUT);
+
+  WiFi.mode(WIFI_AP);
+  uint8_t mac[WL_MAC_ADDR_LENGTH];
+  WiFi.softAPmacAddress(mac);
+  String macID=String(mac[WL_MAC_ADDR_LENGTH -2],HEX) + String(mac[WL_MAC_ADDR_LENGTH -1],HEX);
+  macID.toUpperCase();
+  String AP_SSIDString="EMG_"+macID;
+
+  char AP_SSIDChar[AP_SSIDString.length()+1];
+  memset(AP_SSIDChar,0,AP_SSIDString.length()+1);
+  for (int i=0; i<AP_SSIDString.length();i++)
+    AP_SSIDChar[i]=AP_SSIDString.charAt(i);
+  WiFi.softAP(AP_SSIDChar,WiFi_AP_PSK);
+  server.begin();
+}
+
+void loop() {
+  WiFiClient client = server.available();
+  if (Serial.available())
+    serialEvent();
+  if (!client) {
+    return;
+  }
+  String req = client.readStringUntil('\r');
+  client.flush();
+
+  int state = -1;
+  //Read States
+  if (req.indexOf("/emg") != -1)
+    state = 1;
+
+  client.flush();
+
+  String s = "HTTP/1.1 200 OK\r\n";
+  s += "Content-Type:text/html\r\n\r\n";
+  s += "<!DOCTYPE HTML>\r\n<html>\r\n";
+  if (state == 1){
+    s+="Samples:";s+=String(numberOfSamples);s+="<br />";
+    for(int n=sizeof(sample)/sizeof(float)-numberOfSamples; n<sizeof(sample)/sizeof(float);n++){
+      s+="<b>";
+      s+=String(sample[n]);
+      s+="</b>";
+      s+="<br />";
+    }
+    numberOfSamples=0;
+  }
+  if (state == -1)
+    s += "Bad Request";
+
+  s += "</html>\n";
+  client.print(s);
+
+}
+
+void serialEvent() {
+  while (Serial.available()) {
+    char inChar = (char)Serial.read();
+    inputString += inChar;
+    if (inChar == '\n') {
+      for(int n=0; n<sizeof(sample)/sizeof(float)-1;n++){
+        sample[n]=sample[n+1];
+      }
+      sample[sizeof(sample)/sizeof(float)-1]=atof(inputString.c_str());
+      numberOfSamples++;
+      inputString = "";
+    }
+  }
+}
